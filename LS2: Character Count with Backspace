@@ -1,0 +1,109 @@
+This program prints an updated char count: <n> line after every keypress. Backspace
+(ASCII 8) decrements the count (never below 0); ENTER (ASCII 13) exits. It reuses the
+same wait_key/putchar subroutines from Section 1.3.
+
+# RARS: MMIO Keyboard + Display demo, refactored with reusable subroutines
+# On every keypress prints a new line: "char count: <n>"
+# Backspace (ASCII 8) decrements (floors at 0). ENTER (ASCII 13) exits.
+
+.data
+msg:        .asciz "char count: "   # label text printed before the running count
+digits_buf: .space 16                 # scratch buffer to hold the count's digits before printing
+
+.text
+.globl main            # .globl makes "main" the program's entry point
+main:
+li s1, 0            # li = Load Immediate. s1 = 0, the character count (saved register, persists across jal calls)
+
+main_loop:
+jal wait_key           # jal = Jump And Link. Calls wait_key, saves return address in ra. Result (key pressed) comes back in a0
+mv s2, a0                 # mv = Move. s2 = key pressed (saved so it survives the upcoming putchar calls, which also use a0)
+
+li t0, 13                    # li = Load Immediate. t0 = 13, ASCII code for ENTER
+beq s2, t0, do_exit             # beq = Branch if Equal. If key == ENTER, jump to do_exit and terminate
+
+li t0, 8                          # li = Load Immediate. t0 = 8, ASCII code for Backspace
+beq s2, t0, handle_backspace         # beq = Branch if Equal. If key == Backspace, jump to handle_backspace
+
+addi s1, s1, 1                          # addi = Add Immediate. Any other key -> increment count by 1
+j print_line                              # j = unconditional Jump. Go print the updated count
+
+handle_backspace:
+blez s1, print_line       # blez = Branch if Less-than-or-Equal to Zero. If count <= 0, don't go negative -> skip decrement, just print
+addi s1, s1, -1              # addi = Add Immediate. count = count - 1 (decrement)
+j print_line                    # j = unconditional Jump. Go print the updated count
+
+print_line:
+li a0, 10               # li = Load Immediate. a0 = 10, ASCII code for newline
+jal putchar                # jal = Jump And Link. Calls putchar to display the newline, saves return address in ra
+
+la s3, msg               # la = Load Address. s3 = address of "char count: " string (used as a moving pointer below)
+print_msg_loop:
+lb a0, 0(s3)                 # lb = Load Byte. a0 = current character from the msg string
+beqz a0, print_number           # beqz = Branch if Equal to Zero. If character is the null terminator (0), string is done -> print the number
+jal putchar                        # jal = Jump And Link. Calls putchar to display this character
+addi s3, s3, 1                        # addi = Add Immediate. Move pointer to next character in the string
+j print_msg_loop                        # j = unconditional Jump. Repeat for next character
+
+print_number:
+la s4, digits_buf        # la = Load Address. s4 = address of digits_buf, used to build the digit characters
+li s5, 0                    # li = Load Immediate. s5 = digit count (how many digits we've generated), starts at 0
+mv s6, s1                     # mv = Move. s6 = working copy of the count, so s1 itself stays unmodified
+beqz s6, print_zero              # beqz = Branch if Equal to Zero. If count is 0, special-case print "0" directly
+
+li t1, 10                     # li = Load Immediate. t1 = 10, used as divisor to extract digits one at a time
+conv_loop:
+div t2, s6, t1                   # div = integer Divide. t2 = s6 / 10 (quotient, remaining higher digits)
+rem t3, s6, t1                      # rem = Remainder. t3 = s6 % 10 (the current least-significant digit)
+addi t3, t3, 48                        # addi = Add Immediate. Convert digit (0-9) to its ASCII character code (48 = ASCII '0')
+sb t3, 0(s4)                              # sb = Store Byte. Store this digit character into digits_buf
+addi s4, s4, 1                               # addi = Add Immediate. Move buffer pointer forward
+addi s5, s5, 1                                  # addi = Add Immediate. digit count = digit count + 1
+mv s6, t2                                          # mv = Move. Update working count to the quotient (remaining digits)
+bnez s6, conv_loop                                    # bnez = Branch if Not Equal to Zero. If quotient isn't 0, more digits remain -> repeat
+
+la s4, digits_buf           # la = Load Address. Reset s4 to the start of digits_buf
+add s4, s4, s5                 # add = integer add. s4 = start address + digit count (points just past the last digit written)
+addi s4, s4, -1                   # addi = Add Immediate. s4 = s4 - 1 (now points at the LAST digit written, since digits were stored least-significant-first)
+
+print_digits_loop:
+lb a0, 0(s4)               # lb = Load Byte. a0 = digit character at current position (reading backwards = most-significant digit first)
+jal putchar                   # jal = Jump And Link. Calls putchar to display this digit
+addi s4, s4, -1                  # addi = Add Immediate. Move pointer one step backwards (towards earlier/more-significant digits)
+addi s5, s5, -1                     # addi = Add Immediate. Decrement remaining digit count
+bgtz s5, print_digits_loop             # bgtz = Branch if Greater Than Zero. If digits remain, keep printing
+j main_loop                               # j = unconditional Jump. All digits printed -> go wait for the next keypress
+
+print_zero:
+li a0, 48               # li = Load Immediate. a0 = 48, ASCII code for '0' (special case when count is exactly 0)
+jal putchar                # jal = Jump And Link. Calls putchar to display '0'
+j main_loop                   # j = unconditional Jump. Go wait for the next keypress
+
+do_exit:
+li a7, 10           # li = Load Immediate. a7 = 10, syscall code for "exit"
+ecall                   # ecall = Environment Call. Terminates the program
+
+# ---------------------------------------------------------
+# wait_key: polls Keyboard Control until a key is ready,
+# returns the key's ASCII code in a0.
+# ---------------------------------------------------------
+wait_key:
+li t4, 0xFFFF0000          # li = Load Immediate. t4 = memory-mapped address of Keyboard Control register
+wait_key_poll:
+lb t5, 0(t4)                  # lb = Load Byte. t5 = value at Keyboard Control (1 = key ready, 0 = not ready)
+beqz t5, wait_key_poll           # beqz = Branch if Equal to Zero. If not ready, keep polling (busy-wait)
+li t4, 0xFFFF0004              # li = Load Immediate. t4 = memory-mapped address of Keyboard Data register
+lb a0, 0(t4)                      # lb = Load Byte. a0 = ASCII code of the pressed key (this function's return value)
+ret                                   # ret = Return. Jumps back to caller using the address saved in ra
+
+# ---------------------------------------------------------
+# putchar: waits until Display is ready, writes a0 to it.
+# ---------------------------------------------------------
+putchar:
+li t4, 0xFFFF0008          # li = Load Immediate. t4 = memory-mapped address of Display Control register
+putchar_poll:
+lb t5, 0(t4)                  # lb = Load Byte. t5 = value at Display Control (1 = ready for a character, 0 = busy)
+beqz t5, putchar_poll            # beqz = Branch if Equal to Zero. If not ready, keep polling (busy-wait)
+li t4, 0xFFFF000C              # li = Load Immediate. t4 = memory-mapped address of Display Data register
+sb a0, 0(t4)                      # sb = Store Byte. Writes the character in a0, causing it to appear on screen
+ret                                   # ret = Return. Jumps back to caller using the address saved in ra
