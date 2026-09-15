@@ -1,0 +1,81 @@
+Draw a filled circle on the Bitmap Display using a brute-force approach: for every pixel in the square bounding box around the circle's center, check whether that pixel's distance from the center is within the radius. If it is, color it in.
+
+Why brute-force distance-check instead of a "real" circle algorithm (like Bresenham/midpoint circle)? Those algorithms are more efficient but need more careful integer bookkeeping. The distance-check approach is simpler to reason about and only needs one comparison per pixel: is dx² + dy² ≤ radius²? This avoids sqrt entirely — squaring both sides of the distance formula keeps everything in integers.
+
+Setup:
+
+Pick a center (cx, cy) and a radius.
+Loop y from cy - radius to cy + radius.
+For each y, loop x from cx - radius to cx + radius.
+For each (x, y), compute dx = x - cx, dy = y - cy, and check dx*dx + dy*dy <= radius*radius.
+If true, that pixel is inside the circle — compute its framebuffer address using the same formula from the line example, and store the color there.
+
+
+.data
+WIDTH:  .word 512               # display width, must match Bitmap Display tool setting
+BASE:   .word 0x10010000          # bitmap base address
+COLOR:  .word 0xFF00FF00            # fully opaque green (0xAARRGGBB)
+CX:     .word 100                     # circle center x
+CY:     .word 100                       # circle center y
+RADIUS: .word 30                          # circle radius
+
+.text
+.globl main            # .globl makes "main" the program's entry point
+main:
+    la  t0, WIDTH             # la = Load Address. t0 = address of WIDTH variable
+    lw  s1, 0(t0)                # lw = Load Word. s1 = width (loaded ONCE, reused every pixel)
+
+    la  t0, BASE               # la = Load Address. t0 = address of BASE variable
+    lw  s0, 0(t0)                 # lw = Load Word. s0 = bitmap base address (loaded ONCE)
+
+    la  t0, COLOR                # la = Load Address. t0 = address of COLOR variable
+    lw  s2, 0(t0)                   # lw = Load Word. s2 = color value (loaded ONCE)
+
+    la  t0, CX                     # la = Load Address. t0 = address of CX variable
+    lw  s3, 0(t0)                     # lw = Load Word. s3 = cx (circle center x)
+
+    la  t0, CY                       # la = Load Address. t0 = address of CY variable
+    lw  s4, 0(t0)                       # lw = Load Word. s4 = cy (circle center y)
+
+    la  t0, RADIUS                     # la = Load Address. t0 = address of RADIUS variable
+    lw  s5, 0(t0)                         # lw = Load Word. s5 = radius
+
+    mul s6, s5, s5                    # mul = integer multiply. s6 = radius * radius (r_sq, precomputed once, reused every pixel)
+
+    sub t0, s4, s5                # sub = integer subtract. t0 = y_start = cy - radius (top of bounding box)
+    add t1, s4, s5                  # add = integer add. t1 = y_end = cy + radius (bottom of bounding box)
+
+y_loop:
+    bgt t0, t1, done                 # bgt = Branch if Greater Than. If y_start(t0) > y_end(t1), all rows done -> exit
+
+    sub t2, s3, s5                      # sub = integer subtract. t2 = x_start = cx - radius (left of bounding box, reset each row)
+    add t3, s3, s5                         # add = integer add. t3 = x_end = cx + radius (right of bounding box, reset each row)
+
+x_loop:
+    bgt t2, t3, next_y                   # bgt = Branch if Greater Than. If x_start(t2) > x_end(t3), this row done -> move to next row
+
+    sub t4, t2, s3                          # sub = integer subtract. t4 = dx = x - cx
+    sub t5, t0, s4                            # sub = integer subtract. t5 = dy = y - cy
+    mul t4, t4, t4                              # mul = integer multiply. t4 = dx * dx
+    mul t5, t5, t5                                # mul = integer multiply. t5 = dy * dy
+    add t6, t4, t5                                  # add = integer add. t6 = dist_sq = dx² + dy²
+
+    bgt t6, s6, skip_pixel                             # bgt = Branch if Greater Than. If dist_sq > r_sq, pixel is OUTSIDE circle -> skip drawing it
+
+    mul a0, t0, s1                    # mul = integer multiply. a0 = y * width
+    add a0, a0, t2                       # add = integer add. a0 = y*width + x
+    slli a0, a0, 2                          # slli = Shift Left Logical Immediate. a0 = (y*width+x) * 4 (word = 4 bytes)
+    add a0, a0, s0                             # add = integer add. a0 = base + byte offset -> final framebuffer address
+    sw  s2, 0(a0)                                 # sw = Store Word. Write the color value directly into the framebuffer -> pixel appears instantly (no polling needed)
+
+skip_pixel:
+    addi t2, t2, 1                # addi = Add Immediate. x = x + 1 (move to next column)
+    j   x_loop                       # j = unconditional Jump. Repeat for next x
+
+next_y:
+    addi t0, t0, 1                # addi = Add Immediate. y = y + 1 (move to next row)
+    j   y_loop                       # j = unconditional Jump. Repeat for next row
+
+done:
+    li  a7, 10                # li = Load Immediate. a7 = 10, syscall code for "exit"
+    ecall                          # ecall = Environment Call. Terminates the program
