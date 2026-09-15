@@ -1,0 +1,904 @@
+Program 1:- Hello World
+
+.data
+msg: .asciz "Hello World!\n"
+
+.text
+.global main
+main:
+	la a0, msg
+	li a7, 4
+	ecall
+	
+	li a7, 10
+	ecall
+
+Program 2:- Calculator
+
+.data 
+prompt1: .asciz "Enter first number: "
+prompt2: .asciz "Enter second number: "
+sum_msg: .asciz "Sum: "
+diff_msg: .asciz "Difference: "
+prod_msg: .asciz "Product: "
+newline: .asciz "\n"
+
+.text
+.global main
+main:
+	la a0, prompt1 # load prompt 1 in a0
+	li a7, 4 # print a0
+	ecall
+	li a7, 5 # read and store input in a0
+	ecall
+	mv s0, a0 # move number to s0
+	
+	la a0, prompt2
+	li a7, 4
+	ecall
+	li a7, 5
+	ecall
+	mv s1, a0
+	
+	la a0, sum_msg
+	li a7, 4
+	ecall
+	add a0, s0, s1
+	li a7, 1
+	ecall
+	
+	la a0, newline
+	li a7, 4
+	ecall
+	
+	la a0, diff_msg
+	li a7, 4
+	ecall
+	sub a0, s0, s1
+	li a7, 1
+	ecall
+	
+	la a0, newline
+	li a7, 4
+	ecall
+	
+	la a0, prod_msg
+	li a7, 4
+	ecall
+	mul a0, s0, s1
+	li a7, 1
+	ecall
+	
+	la a0, newline
+	li a7, 4
+	ecall
+
+	li a7, 10
+	ecall
+
+
+
+Question 1:- Sigmoid function calculator
+Write a program that reads a real number x and computes an approximated sigmoid function — normally sigmoid is 1/(1+e^-x), but computing e^x in assembly is painful, so this task uses a simplified approximation instead:
+
+if x <= -4:      sigmoid(x) = 0
+if x >= 4:        sigmoid(x) = 1
+otherwise:         sigmoid(x) = 0.5 + 0.5 * (x / (1 + |x|))
+
+This still gives an S-shaped curve (flat near 0/1 at the extremes, smooth transition through 0.5 at x=0), just without needing exponentials.
+
+
+.data
+prompt:     .asciz "Enter a real number: "
+result_msg: .asciz "Sigmoid value: "
+newline:    .asciz "\n"
+const_one:  .float 1.0
+const_zero: .float 0.0
+const_half: .float 0.5
+neg_four:   .float -4.0
+pos_four:   .float 4.0
+
+.text
+.globl main
+main:
+    la a0, prompt        # la = Load Address. a0 = address of prompt string
+    li a7, 4                # li = Load Immediate. a7 = 4, syscall code "print string"
+    ecall                      # ecall = Environment Call. Print the prompt
+
+    li a7, 6                # li = Load Immediate. a7 = 6, syscall code "read float"
+    ecall                      # ecall = Environment Call. Reads user float input into fa0
+
+    jal ra, simple_sigmoid   # jal = Jump And Link. Call the sigmoid function, ra = return address, result comes back in fa0
+
+    la a0, result_msg    # la = Load Address. a0 = address of "Sigmoid value: " string
+    li a7, 4                 # li = Load Immediate. a7 = 4, syscall "print string"
+    ecall                       # ecall = Environment Call. Print result_msg
+
+    li a7, 2                 # li = Load Immediate. a7 = 2, syscall "print float"
+    ecall                        # ecall = Environment Call. Prints fa0 (the sigmoid result)
+
+    la a0, newline         # la = Load Address. a0 = address of newline string
+    li a7, 4                  # li = Load Immediate. a7 = 4, syscall "print string"
+    ecall                        # ecall = Environment Call. Prints newline
+
+    li a7, 10                # li = Load Immediate. a7 = 10, syscall "exit"
+    ecall                        # ecall = Environment Call. Terminates the program
+
+# ---------------------------------------------------------
+# simple_sigmoid: input fa0 = x, output fa0 = sigmoid(x)
+# ---------------------------------------------------------
+simple_sigmoid:
+    flw ft0, neg_four        # flw = Float Load Word. ft0 = -4.0
+    flw ft1, pos_four          # flw = Float Load Word. ft1 = 4.0
+    flw ft2, const_zero          # flw = Float Load Word. ft2 = 0.0
+    flw ft3, const_one             # flw = Float Load Word. ft3 = 1.0
+
+    fle.s t1, fa0, ft0        # fle.s = Float Less-or-Equal Single. t1 = 1 if (x <= -4.0) else 0 (result goes into INT register t1)
+    bnez t1, return_zero         # bnez = Branch if Not Equal to Zero. If t1 != 0 (condition was true), jump to return_zero
+
+    fle.s t1, ft1, fa0        # fle.s = Float compare. t1 = 1 if (4.0 <= x) else 0
+    bnez t1, return_one          # bnez = Branch if Not Equal to Zero. If true, jump to return_one
+
+    # ---- -4 < x < 4: compute 0.5 + 0.5 * (x / (1 + |x|)) ----
+    fabs.s ft4, fa0            # fabs.s = Float Absolute value. ft4 = |x|
+
+    flw ft5, const_one           # flw = Float Load Word. ft5 = 1.0
+    fadd.s ft5, ft5, ft4            # fadd.s = Float Add. ft5 = 1 + |x|
+    fdiv.s ft6, fa0, ft5              # fdiv.s = Float Divide. ft6 = x / (1 + |x|)
+
+    flw ft7, const_half           # flw = Float Load Word. ft7 = 0.5
+    fmul.s ft6, ft6, ft7             # fmul.s = Float Multiply. ft6 = 0.5 * (x / (1+|x|))
+    fadd.s fa0, ft7, ft6               # fadd.s = Float Add. fa0 = 0.5 + ft6  -> final result, returned in fa0
+    ret                                   # ret = Return. Same as jalr x0, ra, 0 -- jumps back to caller using address in ra
+
+return_zero:
+    flw fa0, const_zero        # flw = Float Load Word. fa0 = 0.0 (the return value)
+    ret                             # ret = Return to caller
+
+return_one:
+    flw fa0, const_one         # flw = Float Load Word. fa0 = 1.0 (the return value)
+    ret                             # ret = Return to caller
+
+Question2:- 
+You need a program that generates the first n prime numbers, where the user enters n. The approach:
+
+Start with a known prime: 2 (the first prime).
+Test the next candidate number (3, 4, 5, ...) by checking whether it's divisible by any prime found so far. If a number isn't divisible by any of them, it's also prime — add it to the list.
+Keep going until you've collected n primes.
+Print the list.
+
+Key idea: you don't need to check divisibility against every number up to the candidate — just against the primes already found. That's much faster, and it's why the array of primes-found-so-far is built incrementally and reused as the divisor list.
+
+.data
+prompt:  .asciz "Enter n: "
+space:   .asciz " "
+newline: .asciz "\n"
+
+.text
+.globl main
+main:
+    la a0, prompt          # la = Load Address. a0 = address of "Enter n: " prompt
+    li a7, 4                   # li = Load Immediate. a7 = 4, syscall "print string"
+    ecall                          # ecall = Environment Call. Print the prompt
+
+    li a7, 5                    # li = Load Immediate. a7 = 5, syscall "read int"
+    ecall                          # ecall = Environment Call. Reads user's n into a0
+
+    mv s1, a0                # mv = Move. s1 = n (saved register, survives future ecalls)
+
+    blez s1, done             # blez = Branch if Less-than-or-Equal to Zero. If n <= 0, skip everything and exit
+
+    # ---- Allocate n*4 bytes dynamically for the primes array ----
+    slli t0, s1, 2              # slli = Shift Left Logical Immediate. t0 = n << 2 = n * 4 (bytes needed)
+    mv a0, t0                     # mv = Move. a0 = number of bytes to allocate (argument for sbrk)
+    li a7, 9                        # li = Load Immediate. a7 = 9, syscall "sbrk" (allocate heap memory)
+    ecall                              # ecall = Environment Call. Allocates memory, returns pointer in a0
+
+    mv s0, a0                  # mv = Move. s0 = base address of the allocated primes array
+
+    # ---- Initialize first known prime ----
+    li t1, 2                     # li = Load Immediate. t1 = 2 (the first prime number)
+    sw t1, 0(s0)                    # sw = Store Word. primes[0] = 2
+
+    li s2, 1                      # li = Load Immediate. s2 = count of primes found so far, starts at 1 (since 2 is already in)
+    li t0, 3                        # li = Load Immediate. t0 = candidate number to test next, starts at 3
+
+find_primes_loop:
+    beq s2, s1, print_primes     # beq = Branch if Equal. If count == n, we have enough primes -> go print them
+
+    li t3, 0                        # li = Load Immediate. t3 = index into primes[] for divisibility checking, reset to 0
+
+check_div_loop:
+    beq t3, s2, add_prime           # beq = Branch if Equal. If t3 == count, candidate wasn't divisible by ANY known prime -> it's prime!
+
+    slli t4, t3, 2                    # slli = Shift Left Logical Immediate. t4 = t3 * 4 (byte offset into primes[])
+    add t4, s0, t4                      # add = integer add. t4 = address of primes[t3]
+    lw t5, 0(t4)                          # lw = Load Word. t5 = primes[t3] (a previously found prime, used as divisor)
+
+    rem t6, t0, t5                          # rem = Remainder. t6 = candidate % primes[t3]
+    beq t6, zero, composite_found             # beq = Branch if Equal. If remainder == 0, candidate is divisible -> NOT prime
+
+    addi t3, t3, 1                              # addi = Add Immediate. t3 = t3 + 1 (check against next known prime)
+    j check_div_loop                              # j = unconditional Jump. Repeat divisibility check
+
+composite_found:
+    addi t0, t0, 1                # addi = Add Immediate. candidate = candidate + 1 (try next number)
+    j find_primes_loop              # j = unconditional Jump. Restart the whole check with new candidate
+
+add_prime:
+    slli t4, s2, 2                # slli = Shift Left Logical Immediate. t4 = count * 4 (byte offset for next free slot)
+    add t4, s0, t4                   # add = integer add. t4 = address of primes[count]
+    sw t0, 0(t4)                       # sw = Store Word. primes[count] = candidate (store the newly found prime)
+
+    addi s2, s2, 1                 # addi = Add Immediate. count = count + 1 (one more prime found)
+    addi t0, t0, 1                   # addi = Add Immediate. candidate = candidate + 1 (move on to test next number)
+    j find_primes_loop                 # j = unconditional Jump. Go check if we have enough primes yet
+
+print_primes:
+    li t3, 0                # li = Load Immediate. t3 = print index, reset to 0
+
+print_loop:
+    beq t3, s1, print_done     # beq = Branch if Equal. If t3 == n, all primes printed -> done
+
+    slli t4, t3, 2                # slli = shift left 2 = multiply by 4 (byte offset)
+    add t4, s0, t4                  # add = integer add. t4 = address of primes[t3]
+    lw a0, 0(t4)                      # lw = Load Word. a0 = primes[t3] (value to print)
+    li a7, 1                            # li = Load Immediate. a7 = 1, syscall "print int"
+    ecall                                  # ecall = Environment Call. Prints the prime
+
+    addi t3, t3, 1                    # addi = Add Immediate. t3 = t3 + 1 (move to next prime)
+    beq t3, s1, print_loop_end          # beq = Branch if Equal. If just printed the LAST prime, skip trailing space
+    la a0, space                          # la = Load Address. a0 = address of space string
+    li a7, 4                                # li = Load Immediate. a7 = 4, syscall "print string"
+    ecall                                      # ecall = Environment Call. Print a space between primes
+
+print_loop_end:
+    j print_loop              # j = unconditional Jump. Repeat for next prime
+
+print_done:
+    la a0, newline        # la = Load Address. a0 = address of newline string
+    li a7, 4                  # li = Load Immediate. a7 = 4, syscall "print string"
+    ecall                        # ecall = Environment Call. Print newline after all primes
+
+done:
+    li a7, 10                # li = Load Immediate. a7 = 10, syscall "exit"
+    ecall                        # ecall = Environment Call. Terminates the program
+
+
+Question 3:-
+Read a base point (bx, by) and 5 other points, each as (x, y) float coordinates. For each of the 5 points, compute the Euclidean distance from the base point:
+
+distance = sqrt( (x - bx)^2 + (y - by)^2 )
+
+Print all 5 distances, then find and print the minimum distance and the coordinates of the closest point.
+
+What's new here:
+
+fsqrt.s — computes a square root on a float, needed for Euclidean distance.
+flt.s — float "less than" comparison, writes a 0/1 result into an integer register (same pattern as fle.s from the sigmoid task) — used to find the minimum.
+Managing three parallel arrays (points_x, points_y, distances) and tracking a running minimum + its index while looping.
+
+.data
+prompt_basex: .asciz "Enter base point x: "
+prompt_basey: .asciz "Enter base point y: "
+prompt_ptx:   .asciz "Enter x of point "
+prompt_pty:   .asciz "Enter y of point "
+points_x:     .space 20      # 5 floats for x-coordinates
+points_y:     .space 20      # 5 floats for y-coordinates
+distances:    .space 20      # 5 floats for computed distances
+dist_msg:     .asciz "Distance from base to point "
+colon:        .asciz ": "
+newline:      .asciz "\n"
+min_msg:      .asciz "Minimum distance: "
+closest_msg:  .asciz "Closest point: ("
+comma:        .asciz ", "
+close_paren:  .asciz ")\n"
+
+.text
+.globl main
+main:
+    # ---- Read base point ----
+    la a0, prompt_basex     # la = Load Address. a0 = address of base-x prompt
+    li a7, 4                   # li = Load Immediate. a7 = 4, syscall "print string"
+    ecall                          # ecall = Environment Call. Print prompt
+    li a7, 6                    # li = Load Immediate. a7 = 6, syscall "read float"
+    ecall                          # ecall = Environment Call. Read value into fa0
+    fmv.s fs0, fa0            # fmv.s = Float Move Single. fs0 = base_x (saved float register, survives further ecalls)
+
+    la a0, prompt_basey
+    li a7, 4
+    ecall
+    li a7, 6
+    ecall
+    fmv.s fs1, fa0            # fs1 = base_y
+
+    # ---- Read 5 points into points_x[] and points_y[] ----
+    la s0, points_x           # la = Load Address. s0 = base address of points_x array
+    la s1, points_y             # la = Load Address. s1 = base address of points_y array
+    li t0, 0                      # li = Load Immediate. t0 = point index i, start at 0
+    li t1, 0                        # li = Load Immediate. t1 = byte offset, start at 0
+
+read_loop:
+    li t6, 5                    # li = Load Immediate. t6 = 5 (number of points, loop limit)
+    beq t0, t6, read_done          # beq = Branch if Equal. If i == 5, all points read -> jump out
+
+    la a0, prompt_ptx
+    li a7, 4
+    ecall
+    li a7, 6                        # li = Load Immediate. a7 = 6, syscall "read float"
+    ecall                              # ecall = Environment Call. Reads x-coordinate into fa0
+    add t2, s0, t1                       # add = integer add. t2 = address of points_x[i]
+    fsw fa0, 0(t2)                          # fsw = Float Store Word. points_x[i] = fa0
+
+    la a0, prompt_pty
+    li a7, 4
+    ecall
+    li a7, 6
+    ecall
+    add t2, s1, t1                       # add = integer add. t2 = address of points_y[i]
+    fsw fa0, 0(t2)                          # fsw = Float Store Word. points_y[i] = fa0
+
+    addi t0, t0, 1                # addi = Add Immediate. i = i + 1
+    addi t1, t1, 4                  # addi = Add Immediate. offset = offset + 4 (next float slot)
+    j read_loop                       # j = unconditional Jump. Repeat for next point
+
+read_done:
+
+    # ---- Compute distance for each point ----
+    la s2, distances          # la = Load Address. s2 = base address of distances array
+    li t0, 0                     # li = Load Immediate. t0 = index i, reset to 0
+    li t1, 0                       # li = Load Immediate. t1 = byte offset, reset to 0
+
+compute_loop:
+    li t6, 5
+    beq t0, t6, compute_done       # beq = Branch if Equal. If i == 5, all distances computed -> jump out
+
+    add t2, s0, t1                    # add = integer add. t2 = address of points_x[i]
+    flw ft0, 0(t2)                       # flw = Float Load Word. ft0 = points_x[i]
+    add t2, s1, t1                          # add = integer add. t2 = address of points_y[i]
+    flw ft1, 0(t2)                             # flw = Float Load Word. ft1 = points_y[i]
+
+    fsub.s ft2, ft0, fs0        # fsub.s = Float Subtract. ft2 = x - base_x  (dx)
+    fsub.s ft3, ft1, fs1          # fsub.s = Float Subtract. ft3 = y - base_y  (dy)
+    fmul.s ft2, ft2, ft2            # fmul.s = Float Multiply. ft2 = dx * dx
+    fmul.s ft3, ft3, ft3              # fmul.s = Float Multiply. ft3 = dy * dy
+    fadd.s ft4, ft2, ft3                # fadd.s = Float Add. ft4 = dx^2 + dy^2
+    fsqrt.s ft4, ft4                      # fsqrt.s = Float Square Root. ft4 = sqrt(dx^2 + dy^2) = Euclidean distance
+
+    add t2, s2, t1                    # add = integer add. t2 = address of distances[i]
+    fsw ft4, 0(t2)                       # fsw = Float Store Word. distances[i] = ft4
+
+    addi t0, t0, 1
+    addi t1, t1, 4
+    j compute_loop
+
+compute_done:
+
+    # ---- Print all 5 distances ----
+    li t0, 0
+    li t1, 0
+print_loop:
+    li t6, 5
+    beq t0, t6, print_done
+
+    la a0, dist_msg
+    li a7, 4
+    ecall
+    mv a0, t0                    # mv = Move. a0 = i (point number to print)
+    li a7, 1                        # li = Load Immediate. a7 = 1, syscall "print int"
+    ecall                               # ecall = Environment Call. Prints point index
+    la a0, colon
+    li a7, 4
+    ecall
+
+    add t2, s2, t1
+    flw fa0, 0(t2)                    # flw = Float Load Word. fa0 = distances[i]
+    li a7, 2                             # li = Load Immediate. a7 = 2, syscall "print float"
+    ecall                                    # ecall = Environment Call. Prints the distance
+    la a0, newline
+    li a7, 4
+    ecall
+
+    addi t0, t0, 1
+    addi t1, t1, 4
+    j print_loop
+
+print_done:
+
+    # ---- Find minimum distance and its index ----
+    flw ft5, 0(s2)              # flw = Float Load Word. ft5 = distances[0], initial guess for minimum
+    li s3, 0                       # li = Load Immediate. s3 = index of minimum, starts at 0
+    li t0, 1                          # li = Load Immediate. t0 = i, start comparing from index 1
+    li t1, 4                            # li = Load Immediate. t1 = byte offset for index 1
+
+min_loop:
+    li t6, 5
+    beq t0, t6, min_done            # beq = Branch if Equal. If i == 5, all distances checked -> done
+
+    add t2, s2, t1                     # add = integer add. t2 = address of distances[i]
+    flw ft6, 0(t2)                        # flw = Float Load Word. ft6 = distances[i] (current candidate)
+
+    flt.s t3, ft6, ft5              # flt.s = Float Less-Than Single. t3 = 1 if (distances[i] < current min) else 0
+    beqz t3, skip_update               # beqz = Branch if Equal to Zero. If t3 == 0, not smaller -> skip update
+
+    fmv.s ft5, ft6                    # fmv.s = Float Move. new minimum found -> ft5 = ft6
+    mv s3, t0                            # mv = Move. remember this index as the new minimum's index
+
+skip_update:
+    addi t0, t0, 1
+    addi t1, t1, 4
+    j min_loop
+
+min_done:
+
+    # ---- Print minimum distance ----
+    la a0, min_msg
+    li a7, 4
+    ecall
+    fmv.s fa0, ft5              # fmv.s = Float Move. fa0 = minimum distance (for printing)
+    li a7, 2
+    ecall
+    la a0, newline
+    li a7, 4
+    ecall
+
+    # ---- Print closest point's coordinates ----
+    la a0, closest_msg
+    li a7, 4
+    ecall
+
+    slli t1, s3, 2               # slli = Shift Left Logical Immediate. t1 = min_index * 4 (byte offset, recomputed since s3 may not match loop's running offset)
+    add t2, s0, t1                  # add = integer add. t2 = address of points_x[min_index]
+    flw fa0, 0(t2)                     # flw = Float Load Word. fa0 = closest point's x-coordinate
+    li a7, 2
+    ecall
+
+    la a0, comma
+    li a7, 4
+    ecall
+
+    add t2, s1, t1                  # add = integer add. t2 = address of points_y[min_index]
+    flw fa0, 0(t2)                     # flw = Float Load Word. fa0 = closest point's y-coordinate
+    li a7, 2
+    ecall
+
+    la a0, close_paren
+    li a7, 4
+    ecall
+
+    li a7, 10               # li = Load Immediate. a7 = 10, syscall "exit"
+    ecall                       # ecall = Environment Call. Terminates the program
+
+Task A 
+
+.data
+array:      .word 12, 45, 23, 56, 78, 34, 67, 89, 21, 43   # hardcoded integer array (10 words = 40 bytes)
+normalized: .space 40                                       # reserve 40 bytes (10 floats x 4 bytes) for output array
+two:        .float 2.0                                      # constant 2.0 stored as a float
+one:        .float 1.0                                      # constant 1.0 stored as a float
+
+.text
+.globl main            # .globl makes "main" visible as the program's entry point
+main:
+    la  s0, array       # la = Load Address. s0 = base address of array (pointer to array[0])
+    li  t6, 10          # li = Load Immediate. t6 = 10, the hardcoded array length (used as loop limit)
+
+    lw  t0, 0(s0)       # lw = Load Word. t0 = array[0] (first element), used as initial guess for min
+    lw  t1, 0(s0)       # t1 = array[0] again, used as initial guess for max
+    li  t2, 1           # t2 = loop counter (index), start at 1 since index 0 already used above
+    li  t3, 4           # t3 = byte offset into array, starts at 4 (index 1 * 4 bytes)
+
+find_min_max:
+    beq t2, t6, done_min_max   # beq = Branch if Equal. If counter t2 == length t6, loop is done -> jump out
+    add t4, s0, t3              # add = integer add. t4 = base address + current byte offset = address of array[t2]
+    lw  t5, 0(t4)                # lw = Load Word. t5 = array[t2], the current element being checked
+
+    blt t5, t0, new_min          # blt = Branch if Less Than. If t5 < current min (t0), jump to update min
+    j   check_max                 # j = unconditional Jump. Skip min update, go check max instead
+new_min:
+    mv  t0, t5                    # mv = Move (copies register). t0 (min) = t5 (current element)
+check_max:
+    bgt t5, t1, new_max          # bgt = Branch if Greater Than. If t5 > current max (t1), jump to update max
+    j   next1                     # j = unconditional Jump. Skip max update, go to loop increment
+new_max:
+    mv  t1, t5                    # mv = Move. t1 (max) = t5 (current element)
+next1:
+    addi t2, t2, 1                # addi = Add Immediate. t2 = t2 + 1 (increment index counter)
+    addi t3, t3, 4                # addi = Add Immediate. t3 = t3 + 4 (advance byte offset by one word)
+    j   find_min_max              # j = unconditional Jump. Go back to top of loop to check next element
+
+done_min_max:
+    fcvt.s.w ft0, t0        # fcvt.s.w = Float Convert Single from Word. ft0 = (float) t0, i.e. min as a float
+    fcvt.s.w ft1, t1        # fcvt.s.w = same conversion. ft1 = (float) t1, i.e. max as a float
+    fsub.s   ft2, ft1, ft0  # fsub.s = Float Subtract Single. ft2 = ft1 - ft0 = (max - min), computed once for reuse
+
+    flw ft6, two             # flw = Float Load Word. ft6 = value loaded from label "two" (2.0)
+    flw ft7, one             # flw = Float Load Word. ft7 = value loaded from label "one" (1.0)
+
+    li  t2, 0                 # li = Load Immediate. Reset t2 = 0 (index counter for second loop)
+    li  t3, 0                 # li = Load Immediate. Reset t3 = 0 (byte offset for second loop)
+    la  s2, normalized        # la = Load Address. s2 = base address of the normalized[] output array
+
+normalize:
+    beq t2, t6, print_now         # beq = Branch if Equal. If t2 == length, normalization loop is done -> jump out
+    add t4, s0, t3                 # add = integer add. t4 = address of array[t2] (input array element address)
+    lw  t5, 0(t4)                   # lw = Load Word. t5 = array[t2] (current integer value to normalize)
+
+    fcvt.s.w ft3, t5           # fcvt.s.w = Convert. ft3 = (float) t5, the current value converted to float
+    fsub.s   ft4, ft3, ft0     # fsub.s = Float Subtract. ft4 = value - min
+    fdiv.s   ft4, ft4, ft2     # fdiv.s = Float Divide. ft4 = (value - min) / (max - min)
+    fmul.s   ft4, ft4, ft6     # fmul.s = Float Multiply. ft4 = ft4 * 2.0
+    fsub.s   ft4, ft4, ft7     # fsub.s = Float Subtract. ft4 = ft4 - 1.0  -> this is the final normalized value
+
+    add t4, s2, t3               # add = integer add. t4 = address of normalized[t2] (output array element address)
+    fsw ft4, 0(t4)                # fsw = Float Store Word. Store ft4 (normalized value) into normalized[t2]
+
+    addi t2, t2, 1                # addi = Add Immediate. t2 = t2 + 1 (increment index counter)
+    addi t3, t3, 4                # addi = Add Immediate. t3 = t3 + 4 (advance byte offset by one word)
+    j   normalize                  # j = unconditional Jump. Go back to top of loop for next element
+
+print_now:
+    li  t2, 0                 # li = Load Immediate. Reset t2 = 0 (index counter for printing loop)
+    li  t3, 0                 # li = Load Immediate. Reset t3 = 0 (byte offset for printing loop)
+print_loop:
+    beq t2, t6, exit              # beq = Branch if Equal. If t2 == length, all values printed -> jump to exit
+    add t4, s2, t3                 # add = integer add. t4 = address of normalized[t2]
+    flw fa0, 0(t4)                  # flw = Float Load Word. fa0 = normalized[t2] (ecall reads float args from fa0)
+    li  a7, 2                        # li = Load Immediate. a7 = 2, the syscall code for "print float"
+    ecall                             # ecall = Environment Call. Triggers the syscall (prints float in fa0)
+
+    li  a0, 32          # li = Load Immediate. a0 = 32, the ASCII code for a space character
+    li  a7, 11           # li = Load Immediate. a7 = 11, the syscall code for "print character"
+    ecall                  # ecall = Environment Call. Prints the character in a0 (a space, for readability)
+
+    addi t2, t2, 1                # addi = Add Immediate. t2 = t2 + 1 (increment index counter)
+    addi t3, t3, 4                # addi = Add Immediate. t3 = t3 + 4 (advance byte offset by one word)
+    j   print_loop                 # j = unconditional Jump. Go back to top of print loop for next element
+
+exit:
+    li  a7, 10           # li = Load Immediate. a7 = 10, the syscall code for "exit"
+    ecall                  # ecall = Environment Call. Terminates the program
+
+
+
+Task B :-
+Given a hardcoded 4×4 matrix, compute the sum of each row and the sum of each column — but you must do it in one pass, not two separate loops. The trick: every time you load A[i][j], that same value belongs to row i AND column j, so update both sums from the one loaded value before moving on.
+
+.data
+A:       .word 4, 8, 1, 6, 3, 9, 5, 2, 7, 0, 4, 3, 2, 6, 8, 1
+row_sum: .space 16
+col_sum: .space 16
+row_msg: .asciz "Row sums: "
+col_msg: .asciz "Column sums: "
+newline: .asciz "\n"
+
+.text
+.globl main
+main:
+    la  s0, A           # s0 = base address of A
+    la  s1, row_sum     # s1 = base address of row_sum
+    la  s2, col_sum     # s2 = base address of col_sum
+    li  t6, 4           # t6 = n = 4 (loop limit)
+
+    li  s3, 0           # s3 = i, row counter
+    li  s5, 0           # s5 = row_offset (byte offset into row_sum), +4 each row
+    li  s7, 0           # s7 = A_offset (byte offset into A), +4 every single element, sequential
+
+outer_loop:
+    beq s3, t6, print_results     # if i == 4, done with all rows -> print results
+    li  s4, 0                      # s4 = j, column counter, reset each new row
+    li  s6, 0                       # s6 = col_offset (byte offset into col_sum), reset each new row
+
+inner_loop:
+    beq s4, t6, next_i             # if j == 4, this row's inner loop is done -> go to next row
+    add t0, s0, s7                  # t0 = address of A[i][j] (base + running offset)
+    lw  t1, 0(t0)                    # t1 = value = A[i][j]  -- loaded ONCE
+
+    # update row_sum[i] += value
+    add t2, s1, s5                    # t2 = address of row_sum[i]
+    lw  t3, 0(t2)                      # t3 = current row_sum[i]
+    add t3, t3, t1                      # t3 = t3 + value
+    sw  t3, 0(t2)                        # store updated row_sum[i] back
+
+    # update col_sum[j] += value (same loaded value t1, no reload)
+    add t2, s2, s6                        # t2 = address of col_sum[j]
+    lw  t3, 0(t2)                          # t3 = current col_sum[j]
+    add t3, t3, t1                          # t3 = t3 + value
+    sw  t3, 0(t2)                            # store updated col_sum[j] back
+
+    addi s4, s4, 1                            # j++
+    addi s6, s6, 4                             # col_offset += 4 (next column)
+    addi s7, s7, 4                              # A_offset += 4 (next element in A)
+    j   inner_loop
+
+next_i:
+    addi s3, s3, 1                                 # i++
+    addi s5, s5, 4                                  # row_offset += 4 (next row)
+    j   outer_loop
+
+print_results:
+    la  a0, row_msg        # la = Load Address. a0 = address of "Row sums: " string
+    li  a7, 4                # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                      # ecall = Environment Call. Prints the row_msg string
+
+    li  s4, 0             # li = Load Immediate. s4 = 0, reused as print loop index (0..3)
+    li  s6, 0               # li = Load Immediate. s6 = 0, reused as byte offset into row_sum
+
+print_row_loop:
+    beq s4, t6, row_done      # beq = Branch if Equal. If s4 == t6 (4), all rows printed -> jump out
+    add t0, s1, s6              # add = integer add. t0 = address of row_sum[s4] (base + offset)
+    lw  a0, 0(t0)                 # lw = Load Word. a0 = row_sum[s4] (value to print, ecall reads int arg from a0)
+    li  a7, 1                       # li = Load Immediate. a7 = 1, syscall code for "print int"
+    ecall                             # ecall = Environment Call. Prints the integer in a0
+
+    li  a0, 32              # li = Load Immediate. a0 = 32, ASCII code for space character
+    li  a7, 11                 # li = Load Immediate. a7 = 11, syscall code for "print char"
+    ecall                        # ecall = Environment Call. Prints the space (separates values)
+
+    addi s4, s4, 1                # addi = Add Immediate. s4 = s4 + 1 (increment print index)
+    addi s6, s6, 4                # addi = Add Immediate. s6 = s6 + 4 (advance byte offset by one word)
+    j   print_row_loop              # j = unconditional Jump. Go back to top of loop for next value
+
+row_done:
+    la  a0, newline         # la = Load Address. a0 = address of newline string
+    li  a7, 4                 # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                        # ecall = Environment Call. Prints the newline (moves to next line)
+
+    la  a0, col_msg         # la = Load Address. a0 = address of "Column sums: " string
+    li  a7, 4                  # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                         # ecall = Environment Call. Prints the col_msg string
+
+    li  s4, 0              # li = Load Immediate. s4 = 0, reset print index for column loop
+    li  s6, 0                # li = Load Immediate. s6 = 0, reset byte offset for column loop
+
+print_col_loop:
+    beq s4, t6, exit           # beq = Branch if Equal. If s4 == t6 (4), all columns printed -> jump to exit
+    add t0, s2, s6                # add = integer add. t0 = address of col_sum[s4] (base + offset)
+    lw  a0, 0(t0)                   # lw = Load Word. a0 = col_sum[s4] (value to print)
+    li  a7, 1                         # li = Load Immediate. a7 = 1, syscall code for "print int"
+    ecall                               # ecall = Environment Call. Prints the integer in a0
+
+    li  a0, 32               # li = Load Immediate. a0 = 32, ASCII space character
+    li  a7, 11                  # li = Load Immediate. a7 = 11, syscall code for "print char"
+    ecall                          # ecall = Environment Call. Prints the space separator
+
+    addi s4, s4, 1                  # addi = Add Immediate. s4 = s4 + 1 (increment print index)
+    addi s6, s6, 4                  # addi = Add Immediate. s6 = s6 + 4 (advance byte offset by one word)
+    j   print_col_loop                # j = unconditional Jump. Go back to top of loop for next value
+
+exit:
+    la  a0, newline          # la = Load Address. a0 = address of newline string
+    li  a7, 4                   # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                          # ecall = Environment Call. Prints final newline
+
+    li  a7, 10                # li = Load Immediate. a7 = 10, syscall code for "exit"
+    ecall                        # ecall = Environment Call. Terminates the program
+
+
+Task C
+Given a 3×3 matrix A, find its inverse. Build an augmented matrix [A | I] (3 rows × 6 columns), then for each pivot row i: divide the whole row by aug[i][i] so the pivot becomes 1, then subtract a multiple of that row from every other row so their column-i entry becomes 0. After doing this for all 3 pivots, the right half of the augmented matrix is A⁻¹.
+
+.data
+A:        .float 2.0, -1.0, 0.0, -1.0, 2.0, -1.0, 0.0, -1.0, 2.0   # 3x3 matrix, row-major (9 floats)
+aug:      .space 72                                                 # 3 rows x 6 cols x 4 bytes = augmented matrix [A|I]
+orig_msg: .asciz "Matrix A:\n"
+inv_msg:  .asciz "Inverse of A:\n"
+newline:  .asciz "\n"
+
+.text
+.globl main            # .globl makes "main" the program's entry point
+main:
+    la s0, A            # la = Load Address. s0 = base address of matrix A
+    la s1, aug           # la = Load Address. s1 = base address of augmented matrix aug
+
+    # ---------------------------------------------------------
+    # Step 1: Build augmented matrix [A | I]
+    # aug[r][c] = A[r][c]       for c < 3
+    # aug[r][c] = 1.0 if c-3==r, else 0.0   for c >= 3 (identity block)
+    # ---------------------------------------------------------
+    li s2, 0              # li = Load Immediate. s2 = r (row index), start at 0
+
+build_row:
+    li t6, 3                    # li = Load Immediate. t6 = 3 (number of rows, loop limit)
+    beq s2, t6, build_done       # beq = Branch if Equal. If r == 3, all rows built -> jump out
+    li s3, 0                      # li = Load Immediate. s3 = c (column index), reset to 0 each row
+
+build_col:
+    li t6, 6                     # li = Load Immediate. t6 = 6 (number of aug columns, loop limit)
+    beq s3, t6, build_next_row    # beq = Branch if Equal. If c == 6, this row is fully built -> next row
+
+    li  t0, 3                       # li = Load Immediate. t0 = 3 (boundary between A-part and identity-part)
+    blt s3, t0, from_A                # blt = Branch if Less Than. If c < 3, value comes from matrix A
+    j   from_identity                   # j = unconditional Jump. Else, value comes from identity block
+
+from_A:
+    mul  t1, s2, t0                     # mul = integer multiply. t1 = r * 3 (A has 3 columns per row)
+    add  t1, t1, s3                      # add = integer add. t1 = r*3 + c (flat index into A)
+    slli t1, t1, 2                        # slli = Shift Left Logical Immediate. t1 = index * 4 (byte offset, since each float is 4 bytes)
+    add  t2, s0, t1                        # add = integer add. t2 = address of A[r][c]
+    flw  ft0, 0(t2)                          # flw = Float Load Word. ft0 = A[r][c] value
+    j    store_aug                             # j = unconditional Jump. Go store this value into aug
+
+from_identity:
+    sub  t1, s3, t0                    # sub = integer subtract. t1 = c - 3 (which identity column, 0/1/2)
+    beq  t1, s2, put_one                 # beq = Branch if Equal. If (c-3) == r, this is the diagonal -> should be 1.0
+    fcvt.s.w ft0, zero                     # fcvt.s.w = Convert integer to float. ft0 = (float) 0 = 0.0 ("zero" is register x0, hardwired 0)
+    j    store_aug                           # j = unconditional Jump. Go store 0.0 into aug
+put_one:
+    li   t3, 1                            # li = Load Immediate. t3 = 1
+    fcvt.s.w ft0, t3                        # fcvt.s.w = Convert. ft0 = (float) 1 = 1.0
+
+store_aug:
+    li   t4, 6                        # li = Load Immediate. t4 = 6 (aug has 6 columns per row)
+    mul  t1, s2, t4                     # mul = integer multiply. t1 = r * 6
+    add  t1, t1, s3                       # add = integer add. t1 = r*6 + c (flat index into aug)
+    slli t1, t1, 2                          # slli = shift left by 2 = multiply by 4 (byte offset)
+    add  t2, s1, t1                           # add = integer add. t2 = address of aug[r][c]
+    fsw  ft0, 0(t2)                             # fsw = Float Store Word. Store ft0 into aug[r][c]
+
+    addi s3, s3, 1                                # addi = Add Immediate. c = c + 1 (next column)
+    j    build_col                                  # j = unconditional Jump. Repeat for next column
+
+build_next_row:
+    addi s2, s2, 1                    # addi = Add Immediate. r = r + 1 (next row)
+    j    build_row                      # j = unconditional Jump. Repeat for next row
+
+build_done:
+
+    # ---------------------------------------------------------
+    # Step 2: Gauss-Jordan elimination
+    # For each pivot row i: normalize row i (divide by pivot),
+    # then eliminate column i from every other row j
+    # ---------------------------------------------------------
+    li s2, 0               # li = Load Immediate. s2 = i (pivot row index), start at 0
+
+pivot_loop:
+    li t6, 3                     # li = Load Immediate. t6 = 3 (number of pivot rows, loop limit)
+    beq s2, t6, elim_done          # beq = Branch if Equal. If i == 3, all pivots processed -> done
+
+    li  t4, 6                        # li = Load Immediate. t4 = 6 (aug row width, used repeatedly below)
+    mul t0, s2, t4                     # mul = integer multiply. t0 = i * 6
+    add t0, t0, s2                       # add = integer add. t0 = i*6 + i (flat index of aug[i][i], the pivot)
+    slli t0, t0, 2                         # slli = shift left 2 = multiply by 4 (byte offset)
+    add t1, s1, t0                           # add = integer add. t1 = address of aug[i][i]
+    flw ft1, 0(t1)                             # flw = Float Load Word. ft1 = pivot value = aug[i][i]
+
+    # ---- Normalize row i: divide every element of row i by pivot ----
+    li s3, 0                    # li = Load Immediate. s3 = c (column index), start at 0
+normalize_loop:
+    li t6, 6                          # li = Load Immediate. t6 = 6 (loop limit, number of aug columns)
+    beq s3, t6, normalize_done          # beq = Branch if Equal. If c == 6, row fully normalized -> done
+    mul t0, s2, t4                        # mul = integer multiply. t0 = i * 6
+    add t0, t0, s3                          # add = integer add. t0 = i*6 + c (flat index of aug[i][c])
+    slli t0, t0, 2                            # slli = shift left 2 = byte offset
+    add t1, s1, t0                              # add = integer add. t1 = address of aug[i][c]
+    flw ft2, 0(t1)                                # flw = Float Load Word. ft2 = aug[i][c]
+    fdiv.s ft2, ft2, ft1                            # fdiv.s = Float Divide. ft2 = aug[i][c] / pivot
+    fsw ft2, 0(t1)                                    # fsw = Float Store Word. Store normalized value back into aug[i][c]
+    addi s3, s3, 1                                      # addi = Add Immediate. c = c + 1 (next column)
+    j normalize_loop                                      # j = unconditional Jump. Repeat for next column
+normalize_done:
+
+    # ---- Eliminate column i from every other row j != i ----
+    li s4, 0                    # li = Load Immediate. s4 = j (other row index), start at 0
+elim_row_loop:
+    li t6, 3                          # li = Load Immediate. t6 = 3 (loop limit, number of rows)
+    beq s4, t6, elim_row_done           # beq = Branch if Equal. If j == 3, all rows processed -> done
+    beq s4, s2, skip_row                  # beq = Branch if Equal. If j == i, skip (don't eliminate the pivot row itself)
+
+    mul t0, s4, t4                    # mul = integer multiply. t0 = j * 6
+    add t0, t0, s2                      # add = integer add. t0 = j*6 + i (flat index of aug[j][i])
+    slli t0, t0, 2                        # slli = shift left 2 = byte offset
+    add t1, s1, t0                          # add = integer add. t1 = address of aug[j][i]
+    flw ft3, 0(t1)                            # flw = Float Load Word. ft3 = factor = aug[j][i] (value to eliminate)
+
+    li s3, 0                    # li = Load Immediate. s3 = c (column index for elimination), start at 0
+elim_col_loop:
+    li t6, 6                          # li = Load Immediate. t6 = 6 (loop limit, number of columns)
+    beq s3, t6, elim_col_done           # beq = Branch if Equal. If c == 6, row j fully eliminated -> done
+
+    mul t0, s2, t4                        # mul = integer multiply. t0 = i * 6 (pivot row i)
+    add t0, t0, s3                          # add = integer add. t0 = i*6 + c (flat index of aug[i][c])
+    slli t0, t0, 2                            # slli = shift left 2 = byte offset
+    add t1, s1, t0                              # add = integer add. t1 = address of aug[i][c]
+    flw ft4, 0(t1)                                # flw = Float Load Word. ft4 = aug[i][c] (pivot row's value)
+
+    fmul.s ft5, ft3, ft4                    # fmul.s = Float Multiply. ft5 = factor * aug[i][c]
+
+    mul t0, s4, t4                        # mul = integer multiply. t0 = j * 6 (target row j)
+    add t0, t0, s3                          # add = integer add. t0 = j*6 + c (flat index of aug[j][c])
+    slli t0, t0, 2                            # slli = shift left 2 = byte offset
+    add t1, s1, t0                              # add = integer add. t1 = address of aug[j][c]
+    flw ft6, 0(t1)                                # flw = Float Load Word. ft6 = current aug[j][c]
+    fsub.s ft6, ft6, ft5                            # fsub.s = Float Subtract. ft6 = aug[j][c] - factor*aug[i][c]
+    fsw ft6, 0(t1)                                    # fsw = Float Store Word. Store updated value back into aug[j][c]
+
+    addi s3, s3, 1                                      # addi = Add Immediate. c = c + 1 (next column)
+    j elim_col_loop                                       # j = unconditional Jump. Repeat for next column
+elim_col_done:
+    j skip_row_end                    # j = unconditional Jump. Continue to end of this row's handling
+skip_row:
+skip_row_end:
+    addi s4, s4, 1                    # addi = Add Immediate. j = j + 1 (next row to eliminate)
+    j elim_row_loop                     # j = unconditional Jump. Repeat for next row
+elim_row_done:
+
+    addi s2, s2, 1                   # addi = Add Immediate. i = i + 1 (move to next pivot row)
+    j pivot_loop                       # j = unconditional Jump. Repeat for next pivot
+
+elim_done:
+
+    # ---------------------------------------------------------
+    # Step 3: Print original matrix A
+    # ---------------------------------------------------------
+    la a0, orig_msg          # la = Load Address. a0 = address of "Matrix A:\n" string
+    li a7, 4                    # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                          # ecall = Environment Call. Prints orig_msg
+
+    li s2, 0               # li = Load Immediate. s2 = row index, start at 0
+printA_row:
+    li t6, 3                     # li = Load Immediate. t6 = 3 (loop limit, rows in A)
+    beq s2, t6, printA_done        # beq = Branch if Equal. If row == 3, done printing A
+    li s3, 0                         # li = Load Immediate. s3 = column index, reset each row
+printA_col:
+    li t6, 3                     # li = Load Immediate. t6 = 3 (loop limit, columns in A)
+    beq s3, t6, printA_next_row    # beq = Branch if Equal. If col == 3, this row done -> next row
+    li t4, 3                         # li = Load Immediate. t4 = 3 (A's row width, for address calc)
+    mul t0, s2, t4                     # mul = integer multiply. t0 = row * 3
+    add t0, t0, s3                       # add = integer add. t0 = row*3 + col (flat index into A)
+    slli t0, t0, 2                         # slli = shift left 2 = byte offset
+    add t1, s0, t0                           # add = integer add. t1 = address of A[row][col]
+    flw fa0, 0(t1)                             # flw = Float Load Word. fa0 = A[row][col] (ecall reads float arg from fa0)
+    li a7, 2                                     # li = Load Immediate. a7 = 2, syscall code for "print float"
+    ecall                                          # ecall = Environment Call. Prints the float value
+    li a0, 32                                        # li = Load Immediate. a0 = 32, ASCII space character
+    li a7, 11                                          # li = Load Immediate. a7 = 11, syscall code for "print char"
+    ecall                                                # ecall = Environment Call. Prints the space
+    addi s3, s3, 1                                          # addi = Add Immediate. col = col + 1 (next column)
+    j printA_col                                              # j = unconditional Jump. Repeat for next column
+printA_next_row:
+    la a0, newline               # la = Load Address. a0 = address of newline string
+    li a7, 4                        # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                              # ecall = Environment Call. Prints newline (move to next row's line)
+    addi s2, s2, 1                       # addi = Add Immediate. row = row + 1 (next row)
+    j printA_row                           # j = unconditional Jump. Repeat for next row
+printA_done:
+
+    # ---------------------------------------------------------
+    # Step 4: Print inverse matrix (right half of aug, columns 3..5)
+    # ---------------------------------------------------------
+    la a0, inv_msg           # la = Load Address. a0 = address of "Inverse of A:\n" string
+    li a7, 4                    # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                          # ecall = Environment Call. Prints inv_msg
+
+    li s2, 0               # li = Load Immediate. s2 = row index, start at 0
+printInv_row:
+    li t6, 3                     # li = Load Immediate. t6 = 3 (loop limit, rows in aug)
+    beq s2, t6, printInv_done      # beq = Branch if Equal. If row == 3, done printing inverse
+    li s3, 3                         # li = Load Immediate. s3 = column index, START AT 3 (skip left half, print only inverse)
+printInv_col:
+    li t6, 6                     # li = Load Immediate. t6 = 6 (loop limit, aug has 6 columns)
+    beq s3, t6, printInv_next_row  # beq = Branch if Equal. If col == 6, this row done -> next row
+    li t4, 6                         # li = Load Immediate. t4 = 6 (aug's row width, for address calc)
+    mul t0, s2, t4                     # mul = integer multiply. t0 = row * 6
+    add t0, t0, s3                       # add = integer add. t0 = row*6 + col (flat index into aug)
+    slli t0, t0, 2                         # slli = shift left 2 = byte offset
+    add t1, s1, t0                           # add = integer add. t1 = address of aug[row][col]
+    flw fa0, 0(t1)                             # flw = Float Load Word. fa0 = aug[row][col] (part of A_inverse)
+    li a7, 2                                     # li = Load Immediate. a7 = 2, syscall code for "print float"
+    ecall                                          # ecall = Environment Call. Prints the float value
+    li a0, 32                                        # li = Load Immediate. a0 = 32, ASCII space character
+    li a7, 11                                          # li = Load Immediate. a7 = 11, syscall code for "print char"
+    ecall                                                # ecall = Environment Call. Prints the space
+    addi s3, s3, 1                                          # addi = Add Immediate. col = col + 1 (next column)
+    j printInv_col                                            # j = unconditional Jump. Repeat for next column
+printInv_next_row:
+    la a0, newline               # la = Load Address. a0 = address of newline string
+    li a7, 4                        # li = Load Immediate. a7 = 4, syscall code for "print string"
+    ecall                              # ecall = Environment Call. Prints newline
+    addi s2, s2, 1                       # addi = Add Immediate. row = row + 1 (next row)
+    j printInv_row                         # j = unconditional Jump. Repeat for next row
+printInv_done:
+
+    li a7, 10           # li = Load Immediate. a7 = 10, syscall code for "exit"
+    ecall                   # ecall = Environment Call. Terminates the program
