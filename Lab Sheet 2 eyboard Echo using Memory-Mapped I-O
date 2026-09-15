@@ -1,0 +1,83 @@
+## Task: Keyboard Echo using Memory-Mapped I/O
+
+**Problem Statement:**
+
+Write a RISC-V assembly program that reads characters typed by the user **one at a time from the keyboard** and echoes (displays) each character back to the screen immediately, continuing until the user presses **ENTER**, at which point the program should terminate.
+
+Unlike previous tasks where input was read using `ecall` (syscalls 5, 6, 8), this task requires you to interact directly with a simulated keyboard and display device using **memory-mapped I/O (MMIO)** — the standard mechanism for how real hardware devices communicate with a CPU.
+
+**Requirements:**
+
+1. Print a prompt message telling the user to type something, and that pressing ENTER will quit.
+2. Continuously **poll** the Keyboard Control register to detect when a key has been pressed.
+3. Once a key is ready, read its ASCII value from the Keyboard Data register.
+4. If the key pressed is **ENTER** (ASCII 13), stop the loop and exit the program.
+5. Otherwise, **poll** the Display Control register to detect when the display is ready to accept a character.
+6. Once ready, write the character to the Display Data register so it appears on screen.
+7. Repeat steps 2–6 until ENTER is pressed.
+
+**Device Register Addresses (RARS Keyboard and Display MMIO Simulator):**
+
+| Register | Address | Purpose |
+|---|---|---|
+| Keyboard Control | `0xFFFF0000` | Bit 0 = 1 when a key is ready to be read |
+| Keyboard Data | `0xFFFF0004` | Holds the ASCII code of the key pressed |
+| Display Control | `0xFFFF0008` | Bit 0 = 1 when display is ready for a new character |
+| Display Data | `0xFFFF000C` | Writing a byte here displays that character |
+
+**Structure suggestions:**
+
+- Write two reusable functions: `wait_key` (polls the keyboard and returns the pressed key's ASCII code in `a0`) and `putchar` (polls the display and writes the character in `a0`).
+- Use `jal` to call these functions from your main echo loop, and `ret` to return from them.
+- Since these are single-byte registers, use `lb`/`sb` (byte-sized load/store) rather than `lw`/`sw`.
+
+**Setup note:** Before running, open **Tools → Keyboard and Display MMIO Simulator** in RARS and check "Connect to MMIO" — otherwise these addresses won't behave like a real keyboard/display and the program will just hang or misbehave.
+
+**Expected behavior:** After running, click into the MMIO simulator's input area and type — each character you type should immediately appear in the simulator's display area. Pressing ENTER should end program execution cleanly (RARS shows "program is finished running (0)").
+
+.data
+prompt: .asciz "Type something (ENTER to quit):\n"   # message shown once at program start
+
+.text
+.globl main            # .globl makes "main" the program's entry point
+main:
+	la a0, prompt          # la = Load Address. a0 = address of the prompt string
+	li a7, 4                  # li = Load Immediate. a7 = 4, syscall code for "print string"
+	ecall                        # ecall = Environment Call. Prints the prompt to the console
+	
+	li s0, 13              # li = Load Immediate. s0 = 13, the ASCII code for ENTER/carriage-return (saved register, survives across jal calls)
+	
+	echo_loop:
+		jal wait_key          # jal = Jump And Link. Calls wait_key, saves return address in ra. Result comes back in a0 (the key pressed)
+		beq a0, s0, echo_exit    # beq = Branch if Equal. If the key pressed (a0) equals ENTER (s0), exit the loop
+		jal putchar               # jal = Jump And Link. Calls putchar to display the key in a0, saves return address in ra
+		j echo_loop                 # j = unconditional Jump. Go back and wait for the next key
+	echo_exit:
+		li a7, 10           # li = Load Immediate. a7 = 10, syscall code for "exit"
+		ecall                   # ecall = Environment Call. Terminates the program
+
+# ---------------------------------------------------------
+# wait_key: polls Keyboard Control until a key is ready,
+# then returns the key's ASCII code in a0.
+# ---------------------------------------------------------
+wait_key:
+li t0, 0xFFFF0000        # li = Load Immediate. t0 = memory-mapped address of Keyboard Control register
+wait_key_poll:
+lb t1, 0(t0)                # lb = Load Byte. t1 = value at Keyboard Control (1 = a key is ready, 0 = not ready yet)
+beqz t1, wait_key_poll         # beqz = Branch if Equal to Zero. If t1 == 0 (no key ready), keep polling (busy-wait loop)
+li t0, 0xFFFF0004         # li = Load Immediate. t0 = memory-mapped address of Keyboard Data register (once ready, this holds the actual key)
+lb a0, 0(t0)                 # lb = Load Byte. a0 = the ASCII code of the key that was pressed (this is the function's "return value")
+ret                             # ret = Return. Same as jalr x0, ra, 0 -- jumps back to whoever called wait_key
+
+# ---------------------------------------------------------
+# putchar: waits until the Display is ready, then writes
+# the character in a0 to the Display Data register.
+# ---------------------------------------------------------
+putchar:
+li t0, 0xFFFF0008        # li = Load Immediate. t0 = memory-mapped address of Display Control register
+putchar_poll:
+lb t1, 0(t0)                # lb = Load Byte. t1 = value at Display Control (1 = ready to accept a character, 0 = busy)
+beqz t1, putchar_poll          # beqz = Branch if Equal to Zero. If t1 == 0 (display not ready), keep polling (busy-wait loop)
+li t0, 0xFFFF000C         # li = Load Immediate. t0 = memory-mapped address of Display Data register
+sb a0, 0(t0)                 # sb = Store Byte. Writes the character in a0 into Display Data, which causes it to appear on screen
+ret                             # ret = Return. Jumps back to whoever called putchar
